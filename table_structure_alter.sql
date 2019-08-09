@@ -1,3 +1,7 @@
+-- 2019-03-10 Fix too-short columns
+ALTER TABLE `lg_game_players` MODIFY COLUMN `ip` varchar(39) NOT NULL;
+ALTER TABLE `lg_games` MODIFY COLUMN `scenario_title` varchar(255) NOT NULL;
+
 -- 2018-03-25 Drop obsolete lg_game_players.client_cuid column
 ALTER TABLE `lg_game_players` DROP COLUMN `client_cuid`;
 
