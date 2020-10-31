@@ -19,7 +19,13 @@ function print_counter($name, $labels, $duration, $timestamp)
 	$lstr = '';
 	if (count($labels))
 	{
-		$lstr = '{'. implode(',', array_map(function($k, $v) { return $k.'="'. addcslashes($v, "\"\\\n") .'"'; }, array_keys($labels), $labels)) .'}';
+		$lstr = '{'.
+			implode(',', array_map(function($k, $v) {
+				$v = preg_replace("/[^a-z0-9\/.]/i", "_", $v);
+				$v = addcslashes($v, "\"\\\n");
+				return $k.'="'. $v .'"';
+			}, array_keys($labels), $labels))
+			.'}';
 	}
 	$metric_name = "league_{$name}_duration_seconds_total";
 	if (!in_array($metric_name, $type_seen))

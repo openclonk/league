@@ -79,7 +79,7 @@ switch(@$_REQUEST['part']) {
 				break;
 			}
 			default:
-				$method = 'invalid';
+				$_REQUEST['method'] = 'invalid';
 		}
 	break;
 	}
@@ -109,7 +109,7 @@ switch(@$_REQUEST['part']) {
 			}
 	
 			default:
-				$method = 'invalid';
+				$_REQUEST['method'] = 'invalid';
 		}
 	break;
 	}
@@ -135,7 +135,7 @@ switch(@$_REQUEST['part']) {
 				break;	
 			}
 			default:
-				$method = 'invalid';
+				$_REQUEST['method'] = 'invalid';
 		}
 	break;
 	}
@@ -248,7 +248,7 @@ switch(@$_REQUEST['part']) {
 			}
 			default:
 				if ($method_may_be_invalid)
-					$method = 'invalid';
+					$_REQUEST['method'] = 'invalid';
 		}
 	break;
 	}
@@ -315,7 +315,7 @@ switch(@$_REQUEST['part']) {
 			}
 			default:
 				if ($method_may_be_invalid)
-					$method = 'invalid';
+					$_REQUEST['method'] = 'invalid';
 		}
 	break;
 	}
@@ -350,14 +350,14 @@ switch(@$_REQUEST['part']) {
 				break;
 			}
 			default:
-				$method = 'invalid';
+				$_REQUEST['method'] = 'invalid';
 		}
 	break;
 	}
 
 	default:
-		$part = "invalid";
-		$method = "invalid";
+		$_REQUEST['part'] = "invalid";
+		$_REQUEST['method'] = "invalid";
 }
 
 $smarty->assign("user_logged_in",$user->is_logged_in());
