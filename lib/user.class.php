@@ -10,8 +10,8 @@ class user
 	var $data;
 	
 	var $error; //last error-id (string)
-	
-	function user()
+
+	function __construct()
 	{
 		$this->error = NULL; 
 	}
