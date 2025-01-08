@@ -1,0 +1,209 @@
+{ config, lib, pkgs, ... }:
+
+let
+  inherit (lib.options) mkEnableOption mkOption;
+
+  writePhpFile = name: text: pkgs.writeTextFile {
+    inherit name;
+    text = "<?php\n${text}";
+    checkPhase = "${pkgs.php}/bin/php --syntax-check $target";
+  };
+
+  cfg = config.services.league;
+  webserver = config.services.caddy;
+  configFile = writePhpFile "league-config.php" (''
+    require 'vendor/autoload.php';
+    require_once('vendor/smarty/smarty/libs/SmartyBC.class.php');
+
+    $smarty = new SmartyBC();
+    $webroot = __DIR__.'/';
+    $smarty->template_dir = $webroot.'template/';
+    $smarty->compile_dir = '${cfg.stateDir}/template_c/';
+    $smarty->cache_dir = '${cfg.stateDir}/cache/';
+    $smarty->config_dir = $webroot.'configs/';
+
+    $log_folder = "${cfg.stateDir}/logs/";
+    $record_folder = "${cfg.stateDir}/records/";
+    $statistics_db = "${cfg.stateDir}/data/statistics.sqlite";
+
+    unset($webroot);
+
+    $redis = new Predis\Client(['scheme' => 'unix', 'path' => '${config.services.redis.servers.league.unixSocket}']);
+  '' + (lib.optionalString cfg.enableMysql ''
+    $database = new database('localhost', '${cfg.user}', "", 'league');
+  '') + cfg.extraConf);
+  smartyConfigFile = pkgs.writeText "smarty.conf" ''
+    header = "${cfg.headerFile}"
+    footer = "${cfg.footerFile}"
+  '';
+  pkg = pkgs.league.override {
+    inherit configFile smartyConfigFile;
+  };
+in
+{
+  options.services.league = {
+    enable = mkEnableOption "Clonk league server";
+
+    enableMysql = mkEnableOption "automatic MySQL server setup";
+
+    hostname = mkOption {
+      type = lib.types.str;
+      description = "hostname the league should be served from";
+      example = "league.example.com";
+    };
+
+    user = mkOption {
+      type = lib.types.str;
+      description = "user the PHP app runs as";
+      default = "league";
+    };
+
+    stateDir = mkOption {
+      type = lib.types.path;
+      description = "Location of the league state directory";
+      default = "/var/lib/league";
+    };
+
+    extraConf = mkOption {
+      type = lib.types.str;
+      description = "extra configuration (config.php)";
+      default = ''
+        $debug = FALSE;
+        $debug_xml_log = FALSE;
+        $debug_sql_slow_log = FALSE;
+        $debug_skip_backend_checksum = TRUE;
+        $debug_skip_flood_protection = TRUE;
+        $debug_skip_session_path = TRUE;
+        $debug_skip_resource_checksum = TRUE;
+
+        $cfg_official_server = array();
+        $cfg_settle_on_official_server_only = false;
+        $cfg_settle_with_latest_engine_only = false;
+      '';
+    };
+
+    headerFile = mkOption {
+      type = lib.types.path;
+      description = "Path to header HTML file";
+    };
+
+    footerFile = mkOption {
+      type = lib.types.path;
+      description = "Path to footer HTML file";
+    };
+
+    poolConfig = mkOption {
+      type = with lib.types; attrsOf (oneOf [ str int bool ]);
+      default = {
+        "pm" = "dynamic";
+        "pm.max_children" = 32;
+        "pm.start_servers" = 2;
+        "pm.min_spare_servers" = 2;
+        "pm.max_spare_servers" = 4;
+        "pm.max_requests" = 500;
+      };
+      description = ''
+        Options for the league PHP pool. See the documentation on `php-fpm.conf`
+        for details on configuration directives.
+      '';
+    };
+  };
+
+  config = lib.mkIf cfg.enable {
+     users.users.${cfg.user} = {
+      group = webserver.group;
+      isSystemUser = true;
+    };
+
+    systemd.tmpfiles.rules = [
+      "d ${cfg.stateDir}/template_c 0700 ${cfg.user} ${webserver.group} - -"
+      "d ${cfg.stateDir}/cache      0700 ${cfg.user} ${webserver.group} - -"
+      "d ${cfg.stateDir}/records    0750 ${cfg.user} ${webserver.group} - -"
+      "d ${cfg.stateDir}/data       0750 ${cfg.user} ${webserver.group} - -"
+      "d ${cfg.stateDir}/logs       0700 ${cfg.user} ${webserver.group} - -"
+    ];
+
+    systemd.timers.league-5min = {
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnStartupSec = "5min";
+        OnUnitActiveSec = "5min";
+      };
+    };
+    systemd.services.league-5min = {
+      description = "Clonk league 5 min cronjob";
+      serviceConfig = {
+        Type = "oneshot";
+        ExecStart = "${pkgs.php}/bin/php ${pkg}/share/php/league/cronjob_5min.php";
+        User = cfg.user;
+      };
+    };
+    systemd.services.league-daily = {
+      description = "Clonk league daily cronjob";
+      startAt = "04:00:00";
+      serviceConfig = {
+        Type = "oneshot";
+        ExecStart = "${pkgs.php}/bin/php ${pkg}/share/php/league/cronjob_daily.php";
+        User = cfg.user;
+      };
+    };
+
+    services.phpfpm.pools.league = {
+      user = cfg.user;
+      group = webserver.group;
+      settings = {
+        "listen.owner" = webserver.user;
+        "listen.group" = webserver.group;
+      } // cfg.poolConfig;
+    };
+
+    services.redis = {
+      servers.league = {
+        enable = true;
+        user = cfg.user;
+        group = webserver.group;
+      };
+    };
+
+    services.mysql = lib.mkIf cfg.enableMysql {
+      enable = true;
+      package = pkgs.mariadb;
+      initialDatabases = [
+        { name = "league"; schema = ./table_structure.sql; }
+      ];
+      ensureUsers = [
+        {
+          name = cfg.user;
+          ensurePermissions = {
+            "league.*" = "ALL PRIVILEGES";
+          };
+        }
+      ];
+    };
+
+    services.caddy = {
+      enable = true;
+      virtualHosts.${cfg.hostname}.extraConfig = ''
+        root * ${pkg}/share/php/league
+        encode zstd gzip
+
+        route {
+          @static_files path /images/* *.css
+          file_server @static_files
+          @dyn_files path /records/* /data/*
+          file_server @dyn_files {
+            root ${cfg.stateDir}
+          }
+
+          error /cronjob_*.php 403
+
+          php_fastcgi unix/${config.services.phpfpm.pools.league.socket} {
+            try_files {path} {path}/index.php
+          }
+
+          error 404
+        }
+      '';
+    };
+  };
+}
