@@ -66,7 +66,7 @@ class database
 			//$log = new log();
 			//$log->add_error(mysqli_error($this->link)." - im Query: $sql");
 			
-			$file = fopen("logs/sql_error_log.txt",'a+');
+			$file = fopen("$log_folder/sql_error_log.txt",'a+');
 			$date=date("d.m.Y",time());
 			$time=date("H:i:s",time());
 			fwrite($file,"\n [$date - $time] ".$error." - im Query: $sql");
@@ -93,7 +93,7 @@ class database
 			if($duration > 1.0)
 			{
 				$duration = sprintf("%05.3f",$duration);
-				$file = fopen("logs/sql_slow_log.txt",'a+');
+				$file = fopen("$log_folder/sql_slow_log.txt",'a+');
 				$date=date("d.m.Y",time());
 				$time=date("H:i:s",time());
 				$error = mysqli_error($this->link);

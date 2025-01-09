@@ -14,6 +14,7 @@ $smarty->compile_dir = $webroot.'template_c/';
 $smarty->cache_dir = $webroot.'cache/';
 $smarty->config_dir = $webroot.'configs/';
 
+$log_folder = $webroot."logs/";
 $record_folder = $webroot."records/";
 $statistics_db = $webroot."statistics.sqlite";
 
