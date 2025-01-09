@@ -2,3 +2,5 @@
 /records/*.c4r
 /config.php
 /vendor/
+/result
+/.direnv
