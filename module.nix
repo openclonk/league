@@ -39,6 +39,8 @@ let
   pkg = pkgs.league.override {
     inherit configFile smartyConfigFile;
   };
+
+  gameEventsListen = "[::1]:62318";
 in
 {
   options.services.league = {
@@ -181,6 +183,23 @@ in
       ];
     };
 
+    systemd.services.league-game-events = {
+      description = "Clonk league game events server";
+      wantedBy = [ "multi-user.target" ];
+      after = [ "redis-league.service" ];
+      environment = {
+        LISTEN_URL = gameEventsListen;
+        REDIS_URL = "unix://${config.services.redis.servers.league.unixSocket}";
+      };
+      serviceConfig = {
+        Type = "exec";
+        ExecStart = "${pkgs.league-game-events}/bin/league-game-events";
+        Restart = "on-failure";
+        User = cfg.user;
+        ProtectSystem = "strict";
+      };
+    };
+
     services.caddy = {
       enable = true;
       virtualHosts.${cfg.hostname}.extraConfig = ''
@@ -200,6 +219,9 @@ in
           php_fastcgi unix/${config.services.phpfpm.pools.league.socket} {
             try_files {path} {path}/index.php
           }
+
+          @game_events path /game_events /game_events.php /poll_game_events.php
+          reverse_proxy @game_events ${gameEventsListen}
 
           error 404
         }

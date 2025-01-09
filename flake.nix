@@ -2,7 +2,10 @@
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   inputs.flake-utils.url = "github:numtide/flake-utils";
 
-  outputs = { self, nixpkgs, flake-utils }:
+  inputs.league-game-events.url = "github:clonkspot/league-game-events";
+  inputs.league-game-events.inputs.nixpkgs.follows = "nixpkgs";
+
+  outputs = { self, nixpkgs, flake-utils, league-game-events }:
     (flake-utils.lib.eachDefaultSystem
       (system:
         let
@@ -19,6 +22,7 @@
     ) // {
       overlays.default = final: prev: {
         league = self.packages.${prev.system}.default;
+        league-game-events = league-game-events.packages.${prev.system}.default;
       };
       nixosModules.default = import ./module.nix;
       # Container for testing
