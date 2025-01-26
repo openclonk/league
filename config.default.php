@@ -43,5 +43,7 @@ $cfg_settle_with_latest_engine_only = false;
 
 $cronjob_password = '';
 
+$remote_ip_address = $_SERVER['REMOTE_ADDR'];
+
 //$smarty->assign("helplink",'http://wiki.openclonk.org/w/FAQ');
 ?>

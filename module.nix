@@ -28,6 +28,15 @@ let
 
     unset($webroot);
 
+    if (!empty($_SERVER['HTTP_X_FORWARDED_FOR']))
+    {
+      $remote_ip_address = explode(", ", $_SERVER['HTTP_X_FORWARDED_FOR'])[0];
+    }
+    else
+    {
+      $remote_ip_address = $_SERVER['REMOTE_ADDR'];
+    }
+
     $redis = new Predis\Client(['scheme' => 'unix', 'path' => '${config.services.redis.servers.league.unixSocket}']);
   '' + (lib.optionalString cfg.enableMysql ''
     $database = new database('localhost', '${cfg.user}', "", 'league');
